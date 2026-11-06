@@ -1,63 +1,71 @@
-# Набор ML-приложений
+# ML-приложения
 
-В репозитории собраны четыре небольшие программы на Python. Каждая использует готовую модель и выполняет одну задачу: определяет тональность текста, переводит речь в текст, классифицирует изображение или находит объекты в видео.
+В проекте четыре модели:
 
-Модели не обучаются. Их веса загружаются автоматически при первом запуске, поэтому для первого запуска нужен интернет.
+- текст — определяет тональность;
+- аудио — переводит речь в текст;
+- изображение — определяет, что на нём изображено;
+- видео — находит объекты и рисует вокруг них рамки.
 
-## Состав проекта
+При первом запуске модели скачивают веса из интернета.
 
-| Папка | Что делает | Библиотека и модель |
-|---|---|---|
-| `text` | Определяет положительную, нейтральную или отрицательную тональность русского текста | Hugging Face Transformers, `cointegrated/rubert-tiny-sentiment-balanced` |
-| `audio` | Распознаёт русскую речь в аудиофайле | Hugging Face Transformers, `openai/whisper-tiny` |
-| `image` | Показывает пять наиболее вероятных классов изображения | PyTorch / TorchVision, MobileNetV2 с весами ImageNet |
-| `video` | Отмечает рамками найденные объекты и сохраняет обработанное видео | PyTorch / TorchVision, Faster R-CNN MobileNetV3 на COCO |
+## Запуск API
 
-В проекте применяются два варианта из задания: Hugging Face Transformers для текста и аудио, а также PyTorch с TorchVision для изображений и видео.
+Нужен Python 3.11. Команды запускайте из папки проекта.
 
-## Активируем окружение
+Создайте и активируйте виртуальное окружение, установите зависимости:
 
-Открываем терминал в корневой папке проекта:
-`python -m venv .venv`
-
-В Windows PowerShell:
-`.\.venv\Scripts\Activate.ps1`
-
-Если в PowerShell запрещает выполнение скрипта:
-`Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
-
-Устанавливаем зависимости:
-`pip install -r requirements.txt`
-
-Сохранить текущие зависимости:
-`pip freeze > requirements.txt`
-
-Если хотите использовать GPU с поддержкой CUDA, вместо CPU:
-```PowerShell
-.\.venv\Scripts\python.exe -m pip uninstall -y torch torchvision
-.\.venv\Scripts\python.exe -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
 ```
 
+В Windows активируйте окружение командой `.venv\Scripts\Activate.ps1`.
 
-## Структура
+Запустите API:
 
-```text
-ml-applications/
-├── audio/
-│   ├── app.py
-│   └── README.md
-├── docs/
-│   └── task-specs.md
-├── image/
-│   ├── app.py
-│   └── README.md
-├── text/
-│   ├── app.py
-│   └── README.md
-├── video/
-│   ├── app.py
-│   └── README.md
-├── .gitignore
-├── requirements.txt
-└── README.md
+```bash
+python -m uvicorn http_api.app:app --port 8000
 ```
+
+При запуске загружаются все четыре модели. Первый запуск может занять время. Откройте http://127.0.0.1:8000/docs, чтобы посмотреть и попробовать запросы.
+
+## Запросы к API
+
+- `POST /text/sentiment` — отправьте JSON, например `{"text": "Фильм понравился"}`.
+- `POST /audio/transcribe` — загрузите аудиофайл в поле `file`.
+- `POST /image/classify` — загрузите картинку в поле `file`. Можно указать `top_k` — сколько вариантов ответа вернуть.
+- `POST /video/detect` — загрузите видео в поле `file`. Можно указать `confidence` — порог уверенности модели.
+
+Аудио должно быть не длиннее 30 секунд. Файл для любого запроса — не больше 50 МиБ.
+
+## Запуск через консоль
+
+Команды запускайте из папки проекта:
+
+```bash
+python -m console.text.app --text "Фильм понравился"
+python -m console.audio.app "запись.wav"
+python -m console.image.app "фото.jpg"
+python -m console.video.app "видео.mp4"
+```
+
+## Тесты
+
+Тесты запускаются без загрузки моделей:
+
+```bash
+python -m pip install -r requirements-test.txt
+python -m pytest -q
+```
+
+пайплайн запускается при создании или обновлении PR в `main`, а также после merge PR в `main`.
+
+## Папки проекта
+
+- `http_api/` — API на FastAPI
+- `console/` — запуск через консоль
+- `service/` — бизнес-логика моделей
+- `dto/` — request и response
+- `tests/` — тесты API
