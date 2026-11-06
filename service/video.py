@@ -1,4 +1,3 @@
-import argparse
 import math
 import time
 from pathlib import Path
@@ -82,7 +81,8 @@ class VideoDetector:
         output_video.parent.mkdir(parents=True, exist_ok=True)
         video_reader = cv2.VideoCapture(str(input_video))
         if not video_reader.isOpened():
-            raise RuntimeError(f"Не удалось открыть видео:  {input_video}")
+            video_reader.release()
+            raise ValueError("Не удалось открыть видео")
 
         width = int(video_reader.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(video_reader.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -113,7 +113,7 @@ class VideoDetector:
                 video_writer.release()
 
         if processed_frames == 0:
-            raise RuntimeError("В видео нету кадров для обработки.")
+            raise ValueError("В видео нет кадров для обработки")
 
         elapsed = time.perf_counter() - started
         return {
@@ -122,29 +122,3 @@ class VideoDetector:
             "seconds": elapsed,
             "device": str(self.device),
         }
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Поиск объектов в видео")
-    parser.add_argument("video", help="Путь к исходному видео")
-    parser.add_argument("--output", help="Путь к выходному файлу")
-    parser.add_argument("--confidence", type=float, default=0.5, help="Минимальная уверенность обнаружение")
-    parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
-    args = parser.parse_args()
-
-    input_video = Path(args.video)
-    output = Path(args.output) if args.output else input_video.with_name(f"{input_video.stem}_processed.mp4")
-
-    try:
-        detector = VideoDetector(args.device)
-        result = detector.process_video(input_video, output, args.confidence)
-    except (FileNotFoundError, RuntimeError, ValueError) as error:
-        parser.error(str(error))
-
-    print(f"Результат сохранён: {result['output']}")
-    print(f"Количество обработанных кадров: {result['frames']}")
-    print(f"Время: {result['seconds']:.1f} с; устройство: {result['device']}")
-
-
-if __name__ == "__main__":
-    main()

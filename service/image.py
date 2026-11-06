@@ -1,8 +1,7 @@
-import argparse
 from pathlib import Path
 
 import torch
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 from torchvision.models import MobileNet_V2_Weights, mobilenet_v2
 
 
@@ -21,8 +20,12 @@ class ImageClassifier:
         if not path.is_file():
             raise FileNotFoundError(f"Файл не найден:{path}")
 
-        with Image.open(path) as image:
-            processed_image = self.preprocess(image.convert("RGB")).unsqueeze(0)
+        try:
+            with Image.open(path) as image:
+                rgb_image = image.convert("RGB")
+        except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as error:
+            raise ValueError("Не удалось прочитать изображение") from error
+        processed_image = self.preprocess(rgb_image).unsqueeze(0)
         processed_image = processed_image.to(self.device)
 
         with torch.inference_mode():
@@ -38,21 +41,3 @@ class ImageClassifier:
             }
             for score, rank in zip(top_probabilities.cpu().tolist(), class_indexes.cpu().tolist())
         ]
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Классификация изображения с помощью MobileNetV2")
-    parser.add_argument("image", help="Путь к изображению")
-    args = parser.parse_args()
-
-    if not Path(args.image).is_file():
-        parser.error(f"Файл не найден: {args.image}")
-
-    predictions = ImageClassifier().classify_image(args.image)
-    for rank, image_prediction in enumerate(predictions, start=1):
-        probability = image_prediction["probability"] * 100
-        print(f"{rank}. {image_prediction['name']} — {probability:.1f}%")
-
-
-if __name__ == "__main__":
-    main()

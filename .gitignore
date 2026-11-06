@@ -12,3 +12,4 @@ __pycache__/
 *.keras
 data/
 results/
+.pytest_cache/
