@@ -1,0 +1,58 @@
+import argparse
+from pathlib import Path
+
+import torch
+from PIL import Image
+from torchvision.models import MobileNet_V2_Weights, mobilenet_v2
+
+
+class ImageClassifier:
+    def __init__(self):
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.weights = MobileNet_V2_Weights.DEFAULT
+        self.model = mobilenet_v2(weights=self.weights)
+        self.model.to(self.device)
+        self.model.eval()
+        self.preprocess = self.weights.transforms()
+        self.categories = self.weights.meta["categories"]
+
+    def classify_image(self, image_path, top_k=5):
+        path = Path(image_path)
+        if not path.is_file():
+            raise FileNotFoundError(f"Файл не найден:{path}")
+
+        with Image.open(path) as image:
+            processed_image = self.preprocess(image.convert("RGB")).unsqueeze(0)
+        processed_image = processed_image.to(self.device)
+
+        with torch.inference_mode():
+            class_logits = self.model(processed_image)[0]
+            class_probabilities = torch.softmax(class_logits, dim=0)
+            top_probabilities, class_indexes = torch.topk(class_probabilities, k=min(top_k, len(self.categories)))
+
+        return [
+            {
+                "class_id": int(rank),
+                "name": self.categories[int(rank)],
+                "probability": float(score),
+            }
+            for score, rank in zip(top_probabilities.cpu().tolist(), class_indexes.cpu().tolist())
+        ]
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Классификация изображения с помощью MobileNetV2")
+    parser.add_argument("image", help="Путь к изображению")
+    args = parser.parse_args()
+
+    if not Path(args.image).is_file():
+        parser.error(f"Файл не найден: {args.image}")
+
+    predictions = ImageClassifier().classify_image(args.image)
+    for rank, image_prediction in enumerate(predictions, start=1):
+        probability = image_prediction["probability"] * 100
+        print(f"{rank}. {image_prediction['name']} — {probability:.1f}%")
+
+
+if __name__ == "__main__":
+    main()
